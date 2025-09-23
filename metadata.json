@@ -1,0 +1,5 @@
+{
+  "name": "Stock Fundamentals Visualizer",
+  "description": "A modern, dark-themed dashboard for visualizing stock market fundamentals, including price, revenue, and other key performance indicators, presented through interactive charts. Inspired by high-end financial analytics platforms.",
+  "requestFramePermissions": []
+}
