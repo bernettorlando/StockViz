@@ -28,6 +28,18 @@ export interface FinancialDataPoint {
   value: number;
 }
 
+export interface CashAndDebtDataPoint {
+  date: string;
+  cash: number;
+  debt: number;
+}
+
+export interface ReturnOfCapitalDataPoint {
+  date: string;
+  dividends: number;
+  buybacks: number;
+}
+
 export interface InsiderTransaction {
   name: string;
   title: string;
@@ -46,4 +58,10 @@ export interface StockData {
   overview: CompanyOverview;
   latestBalanceSheet: any | null;
   insiderTransactions: InsiderTransaction[];
+  eps: FinancialDataPoint[];
+  cashAndDebt: CashAndDebtDataPoint[];
+  dividends: FinancialDataPoint[];
+  returnOfCapital: ReturnOfCapitalDataPoint[];
+  sharesOutstanding: FinancialDataPoint[];
+  ratios: FinancialDataPoint[];
 }

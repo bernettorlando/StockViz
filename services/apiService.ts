@@ -1,5 +1,4 @@
-
-import type { StockData, PriceDataPoint, FinancialDataPoint, InsiderTransaction } from '../types';
+import type { StockData, PriceDataPoint, FinancialDataPoint, InsiderTransaction, CashAndDebtDataPoint, ReturnOfCapitalDataPoint } from '../types';
 
 const BASE_URL = 'https://www.alphavantage.co/query?';
 
@@ -35,17 +34,19 @@ export const fetchStockData = async (ticker: string, apiKey: string): Promise<St
   const balanceSheetPromise = fetch(`${BASE_URL}function=BALANCE_SHEET&symbol=${ticker}&apikey=${apiKey}`);
   const overviewPromise = fetch(`${BASE_URL}function=OVERVIEW&symbol=${ticker}&apikey=${apiKey}`);
   const insiderPromise = fetch(`${BASE_URL}function=INSIDER_TRANSACTIONS&symbol=${ticker}&apikey=${apiKey}`);
+  const earningsPromise = fetch(`${BASE_URL}function=EARNINGS&symbol=${ticker}&apikey=${apiKey}`);
 
-  const [priceRes, incomeRes, cashFlowRes, balanceSheetRes, overviewRes, insiderRes] = await Promise.all([
+  const [priceRes, incomeRes, cashFlowRes, balanceSheetRes, overviewRes, insiderRes, earningsRes] = await Promise.all([
     pricePromise,
     incomePromise,
     cashFlowPromise,
     balanceSheetPromise,
     overviewPromise,
-    insiderPromise
+    insiderPromise,
+    earningsPromise,
   ]);
 
-  if (!priceRes.ok || !incomeRes.ok || !cashFlowRes.ok || !balanceSheetRes.ok || !overviewRes.ok || !insiderRes.ok) {
+  if (!priceRes.ok || !incomeRes.ok || !cashFlowRes.ok || !balanceSheetRes.ok || !overviewRes.ok || !insiderRes.ok || !earningsRes.ok) {
     throw new Error('Failed to fetch data from Alphavantage. Check your network connection or API key.');
   }
 
@@ -55,6 +56,7 @@ export const fetchStockData = async (ticker: string, apiKey: string): Promise<St
   const balanceSheetJson = await balanceSheetRes.json();
   const overviewJson = await overviewRes.json();
   const insiderJson = await insiderRes.json();
+  const earningsJson = await earningsRes.json();
 
   const priceData = checkApiError(priceJson, 'Time Series');
   const incomeData = checkApiError(incomeJson, 'Income Statement');
@@ -62,6 +64,7 @@ export const fetchStockData = async (ticker: string, apiKey: string): Promise<St
   const balanceSheetData = checkApiError(balanceSheetJson, 'Balance Sheet');
   const overviewData = checkApiError(overviewJson, 'Overview');
   const insiderData = checkApiError(insiderJson, 'Insider Transactions');
+  const earningsData = checkApiError(earningsJson, 'Earnings');
 
   if (Object.keys(overviewData).length === 0) {
     throw new Error(`No overview data found for ${ticker}. The ticker may be invalid or not supported by the OVERVIEW endpoint.`);
@@ -138,6 +141,78 @@ export const fetchStockData = async (ticker: string, apiKey: string): Promise<St
         .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()) // Sort by most recent
     : [];
 
+    // New Chart Transformations
+    const quarterlyEarnings = earningsData.quarterlyEarnings || [];
+    const transformedEps: FinancialDataPoint[] = quarterlyEarnings
+        .map((d: any) => ({
+            date: getQuarterFromDate(d.fiscalDateEnding),
+            value: parseFloat(d.reportedEPS),
+        }))
+        .reverse();
+    
+    const transformedSharesOutstanding: FinancialDataPoint[] = balanceSheetReports
+        .map((d: any) => ({
+            date: getQuarterFromDate(d.fiscalDateEnding),
+            value: parseFloat(d.commonStockSharesOutstanding),
+        }))
+        .reverse();
+
+    const sharesOutstandingMap = new Map<string, number>();
+    balanceSheetReports.forEach((d: any) => {
+        sharesOutstandingMap.set(d.fiscalDateEnding, parseFloat(d.commonStockSharesOutstanding));
+    });
+
+    const transformedDividends: FinancialDataPoint[] = cashFlowReports
+        .map((d: any) => {
+            const payout = parseFloat(d.dividendPayoutCommonStock) || 0;
+            const shares = sharesOutstandingMap.get(d.fiscalDateEnding);
+            const value = (shares && shares > 0) ? payout / shares : 0;
+            return {
+                date: getQuarterFromDate(d.fiscalDateEnding),
+                value: value,
+            };
+        })
+        .filter(d => d.value > 0)
+        .reverse();
+        
+    const transformedCashAndDebt: CashAndDebtDataPoint[] = balanceSheetReports
+        .map((d: any) => {
+            const shortTermDebt = parseFloat(d.shortTermDebt) || 0;
+            const longTermDebt = parseFloat(d.longTermDebt) || 0;
+            const totalDebt = shortTermDebt + longTermDebt;
+            return {
+                date: getQuarterFromDate(d.fiscalDateEnding),
+                cash: parseFloat(d.cashAndCashEquivalentsAtCarryingValue) || 0,
+                debt: totalDebt > 0 ? totalDebt : parseFloat(d.shortLongTermDebtTotal) || 0,
+            };
+        })
+        .reverse();
+        
+    const transformedReturnOfCapital: ReturnOfCapitalDataPoint[] = cashFlowReports
+        .map((d: any) => {
+            const buybacks = Math.abs(parseFloat(d.paymentsForRepurchaseOfCommonStock)) || 0;
+            const dividends = parseFloat(d.dividendPayout) || 0;
+            return {
+                date: getQuarterFromDate(d.fiscalDateEnding),
+                buybacks: buybacks,
+                dividends: dividends,
+            };
+        })
+        .reverse();
+
+    const transformedRatios: FinancialDataPoint[] = incomeReports
+        .map((d: any) => {
+            const netIncome = parseFloat(d.netIncome);
+            const revenue = parseFloat(d.totalRevenue);
+            const value = (revenue && revenue !== 0) ? (netIncome / revenue) * 100 : 0; // as percentage
+            return {
+                date: getQuarterFromDate(d.fiscalDateEnding),
+                value: value,
+            };
+        })
+        .reverse();
+
+
   return {
     price: transformedPrice,
     revenue: transformedRevenue,
@@ -148,5 +223,11 @@ export const fetchStockData = async (ticker: string, apiKey: string): Promise<St
     overview: overviewData,
     latestBalanceSheet: balanceSheetReports.length > 0 ? balanceSheetReports[0] : null,
     insiderTransactions: transformedInsiderTransactions,
+    eps: transformedEps,
+    cashAndDebt: transformedCashAndDebt,
+    dividends: transformedDividends,
+    returnOfCapital: transformedReturnOfCapital,
+    sharesOutstanding: transformedSharesOutstanding,
+    ratios: transformedRatios,
   };
 };

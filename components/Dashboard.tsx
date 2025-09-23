@@ -2,15 +2,13 @@
 import React, { useState, useEffect } from 'react';
 import {
   ResponsiveContainer,
-  AreaChart,
-  Area,
   BarChart,
   Bar,
   XAxis,
   YAxis,
   Tooltip,
 } from 'recharts';
-import type { StockData, PriceDataPoint, FinancialDataPoint } from '../types';
+import type { StockData, PriceDataPoint } from '../types';
 import { fetchStockData } from '../services/apiService';
 import ChartCard from './ChartCard';
 import { CompanySummary } from './CompanySummary';
@@ -30,11 +28,39 @@ const formatCurrency = (value: number) => {
     return `$${value?.toFixed(2)}`;
 };
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+const formatLargeNumber = (value: number) => {
+    if (Math.abs(value) >= 1e9) return `${(value / 1e9).toFixed(2)}b`;
+    if (Math.abs(value) >= 1e6) return `${(value / 1e6).toFixed(2)}m`;
+    if (Math.abs(value) >= 1e3) return `${(value / 1e3).toFixed(0)}k`;
+    return value?.toLocaleString();
+};
+
+const CurrencyTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     return (
       <div className="bg-navy-darkest p-2 border border-navy-light rounded-md shadow-lg">
         <p className="label text-sm text-white">{`${label} : ${formatCurrency(payload[0].value)}`}</p>
+      </div>
+    );
+  }
+  return null;
+};
+
+const StackedTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-navy-darkest p-2 border border-navy-light rounded-md shadow-lg text-sm text-white space-y-1">
+        <p className="label font-semibold">{label}</p>
+        {payload.map((p: any) => (
+          <p key={p.name} style={{ color: p.color }}>
+            {`${p.name}: ${formatCurrency(p.value)}`}
+          </p>
+        ))}
+        {payload.length > 1 && (
+            <p className="font-bold mt-1 pt-1 border-t border-navy-light">
+                Total: {formatCurrency(payload.reduce((sum: number, p: any) => sum + p.value, 0))}
+            </p>
+        )}
       </div>
     );
   }
@@ -86,21 +112,22 @@ const Dashboard: React.FC<DashboardProps> = ({ ticker, apiKey }) => {
       return;
     }
 
-    const getFilteredFinancialData = (financialData: FinancialDataPoint[], range: TimeRange): FinancialDataPoint[] => {
-      let quartersToKeep: number;
-      switch(range) {
-          case '1Y': quartersToKeep = 4; break;
-          case '3Y': quartersToKeep = 12; break;
-          case '5Y': quartersToKeep = 20; break;
-          case '10Y': quartersToKeep = 40; break;
-          case 'All': return financialData;
-          default: return financialData;
-      }
-      return financialData.slice(-quartersToKeep);
+    const getFilteredDataByQuarters = <T,>(d: T[], range: TimeRange): T[] => {
+        if (!d) return [];
+        let quartersToKeep: number;
+        switch(range) {
+            case '1Y': quartersToKeep = 4; break;
+            case '3Y': quartersToKeep = 12; break;
+            case '5Y': quartersToKeep = 20; break;
+            case '10Y': quartersToKeep = 40; break;
+            case 'All': return d;
+            default: return d;
+        }
+        return d.slice(-quartersToKeep);
     }
     
     const getFilteredPriceData = (priceData: PriceDataPoint[], range: TimeRange): PriceDataPoint[] => {
-        if (range === 'All') return priceData;
+        if (range === 'All' || !priceData) return priceData || [];
 
         const now = new Date();
         const startDate = new Date();
@@ -120,11 +147,17 @@ const Dashboard: React.FC<DashboardProps> = ({ ticker, apiKey }) => {
     setFilteredData({
       ...data,
       price: getFilteredPriceData(data.price, timeRange),
-      revenue: getFilteredFinancialData(data.revenue, timeRange),
-      ebitda: getFilteredFinancialData(data.ebitda, timeRange),
-      netIncome: getFilteredFinancialData(data.netIncome, timeRange),
-      freeCashFlow: getFilteredFinancialData(data.freeCashFlow, timeRange),
-      totalAssets: getFilteredFinancialData(data.totalAssets, timeRange),
+      revenue: getFilteredDataByQuarters(data.revenue, timeRange),
+      ebitda: getFilteredDataByQuarters(data.ebitda, timeRange),
+      netIncome: getFilteredDataByQuarters(data.netIncome, timeRange),
+      freeCashFlow: getFilteredDataByQuarters(data.freeCashFlow, timeRange),
+      totalAssets: getFilteredDataByQuarters(data.totalAssets, timeRange),
+      eps: getFilteredDataByQuarters(data.eps, timeRange),
+      cashAndDebt: getFilteredDataByQuarters(data.cashAndDebt, timeRange),
+      dividends: getFilteredDataByQuarters(data.dividends, timeRange),
+      returnOfCapital: getFilteredDataByQuarters(data.returnOfCapital, timeRange),
+      sharesOutstanding: getFilteredDataByQuarters(data.sharesOutstanding, timeRange),
+      ratios: getFilteredDataByQuarters(data.ratios, timeRange),
     });
 
   }, [data, timeRange]);
@@ -132,7 +165,6 @@ const Dashboard: React.FC<DashboardProps> = ({ ticker, apiKey }) => {
   if (loading) {
     return (
         <div className="animate-pulse">
-            {/* Skeleton for CompanySummary */}
             <div className="p-6 mb-6 space-y-6">
                 <div className="flex items-center justify-between">
                     <div>
@@ -157,7 +189,6 @@ const Dashboard: React.FC<DashboardProps> = ({ ticker, apiKey }) => {
                     ))}
                 </div>
             </div>
-            {/* Skeleton for charts */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {[...Array(6)].map((_, i) => (
                     <div key={i} className="bg-navy-medium rounded-lg h-80 p-6">
@@ -166,7 +197,6 @@ const Dashboard: React.FC<DashboardProps> = ({ ticker, apiKey }) => {
                     </div>
                 ))}
             </div>
-            {/* Skeleton for Insider Buys Table */}
             <div className="bg-navy-medium rounded-lg p-6 mt-6">
                 <div className="h-7 bg-navy-light rounded w-48 mb-4"></div>
                 <div className="space-y-2">
@@ -193,15 +223,6 @@ const Dashboard: React.FC<DashboardProps> = ({ ticker, apiKey }) => {
     return <div className="text-center text-gray-text p-10 bg-navy-medium rounded-lg max-w-md mx-auto">Search for a stock ticker to begin.</div>;
   }
   
-  let priceChange = 0;
-  if (filteredData.price.length > 1) {
-      const startPrice = filteredData.price[0].price;
-      const endPrice = filteredData.price[filteredData.price.length - 1].price;
-      if (startPrice !== 0) {
-        priceChange = ((endPrice - startPrice) / startPrice) * 100;
-      }
-  }
-  
   const timeRanges: TimeRange[] = ['1Y', '3Y', '5Y', '10Y', 'All'];
 
   return (
@@ -225,31 +246,13 @@ const Dashboard: React.FC<DashboardProps> = ({ ticker, apiKey }) => {
             </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-1">
-                <ChartCard title="Price" tag={`${priceChange >= 0 ? '+' : ''}${priceChange.toFixed(2)}%`} tagColor={priceChange >= 0 ? 'green' : 'red'}>
-                    <ResponsiveContainer width="100%" height={280}>
-                        <AreaChart data={filteredData.price} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
-                            <defs>
-                                <linearGradient id="priceGradient" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#A3E635" stopOpacity={0.4}/>
-                                    <stop offset="95%" stopColor="#A3E635" stopOpacity={0}/>
-                                </linearGradient>
-                            </defs>
-                            <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#9CA3AF' }} tickFormatter={(val) => new Date(val).toLocaleDateString('en-US', { month: '2-digit', day:'2-digit', year:'2-digit' })} angle={-45} textAnchor="end" height={50} interval={Math.floor(filteredData.price.length / 12)}/>
-                            <YAxis tickFormatter={(val) => `$${Number(val).toFixed(0)}`} domain={['dataMin - 10', 'dataMax + 10']} tick={{ fontSize: 12, fill: '#9CA3AF' }} />
-                            <Tooltip content={<CustomTooltip />} />
-                            <Area type="monotone" dataKey="price" stroke="#84CC16" strokeWidth={2} fillOpacity={1} fill="url(#priceGradient)" dot={false} />
-                        </AreaChart>
-                    </ResponsiveContainer>
-                </ChartCard>
-            </div>
-            <ChartCard title="Revenue">
+             <ChartCard title="Revenue">
                 <ResponsiveContainer width="100%" height={280}>
                     <BarChart data={filteredData.revenue} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
                         <XAxis dataKey="date" tick={{ fontSize: 12, fill: '#9CA3AF' }} />
                         <YAxis tickFormatter={formatCurrency} tick={{ fontSize: 12, fill: '#9CA3AF' }} />
-                        <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.1)' }} />
-                        <Bar dataKey="value" fill="#FBBF24" />
+                        <Tooltip content={<CurrencyTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.1)' }} />
+                        <Bar dataKey="value" fill="#8B5CF6" />
                     </BarChart>
                 </ResponsiveContainer>
             </ChartCard>
@@ -258,8 +261,8 @@ const Dashboard: React.FC<DashboardProps> = ({ ticker, apiKey }) => {
                     <BarChart data={filteredData.ebitda} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
                         <XAxis dataKey="date" tick={{ fontSize: 12, fill: '#9CA3AF' }} />
                         <YAxis tickFormatter={formatCurrency} tick={{ fontSize: 12, fill: '#9CA3AF' }} />
-                        <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.1)' }} />
-                        <Bar dataKey="value" fill="#60A5FA" />
+                        <Tooltip content={<CurrencyTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.1)' }} />
+                        <Bar dataKey="value" fill="#EC4899" />
                     </BarChart>
                 </ResponsiveContainer>
             </ChartCard>
@@ -268,18 +271,18 @@ const Dashboard: React.FC<DashboardProps> = ({ ticker, apiKey }) => {
                     <BarChart data={filteredData.netIncome} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
                         <XAxis dataKey="date" tick={{ fontSize: 12, fill: '#9CA3AF' }} />
                         <YAxis tickFormatter={formatCurrency} tick={{ fontSize: 12, fill: '#9CA3AF' }} />
-                        <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.1)' }} />
-                        <Bar dataKey="value" fill="#F97316" />
+                        <Tooltip content={<CurrencyTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.1)' }} />
+                        <Bar dataKey="value" fill="#10B981" />
                     </BarChart>
                 </ResponsiveContainer>
             </ChartCard>
-            <ChartCard title="Free Cash Flow">
+             <ChartCard title="Free Cash Flow">
                 <ResponsiveContainer width="100%" height={280}>
                     <BarChart data={filteredData.freeCashFlow} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
                         <XAxis dataKey="date" tick={{ fontSize: 12, fill: '#9CA3AF' }} />
                         <YAxis tickFormatter={formatCurrency} tick={{ fontSize: 12, fill: '#9CA3AF' }} />
-                        <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.1)' }} />
-                        <Bar dataKey="value" fill="#EA580C" />
+                        <Tooltip content={<CurrencyTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.1)' }} />
+                        <Bar dataKey="value" fill="#F97316" />
                     </BarChart>
                 </ResponsiveContainer>
             </ChartCard>
@@ -288,8 +291,70 @@ const Dashboard: React.FC<DashboardProps> = ({ ticker, apiKey }) => {
                     <BarChart data={filteredData.totalAssets} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
                         <XAxis dataKey="date" tick={{ fontSize: 12, fill: '#9CA3AF' }} />
                         <YAxis tickFormatter={formatCurrency} tick={{ fontSize: 12, fill: '#9CA3AF' }} />
-                        <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.1)' }} />
-                        <Bar dataKey="value" fill="#8B5CF6" />
+                        <Tooltip content={<CurrencyTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.1)' }} />
+                        <Bar dataKey="value" fill="#0EA5E9" />
+                    </BarChart>
+                </ResponsiveContainer>
+            </ChartCard>
+            <ChartCard title="EPS">
+                <ResponsiveContainer width="100%" height={280}>
+                    <BarChart data={filteredData.eps} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
+                        <XAxis dataKey="date" tick={{ fontSize: 12, fill: '#9CA3AF' }} />
+                        <YAxis tickFormatter={(val) => `$${Number(val).toFixed(2)}`} tick={{ fontSize: 12, fill: '#9CA3AF' }} />
+                        <Tooltip content={<CurrencyTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.1)' }} />
+                        <Bar dataKey="value" fill="#FBBF24" />
+                    </BarChart>
+                </ResponsiveContainer>
+            </ChartCard>
+            <ChartCard title="Cash & Debt">
+                <ResponsiveContainer width="100%" height={280}>
+                    <BarChart data={filteredData.cashAndDebt} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
+                        <XAxis dataKey="date" tick={{ fontSize: 12, fill: '#9CA3AF' }} />
+                        <YAxis tickFormatter={formatCurrency} tick={{ fontSize: 12, fill: '#9CA3AF' }} />
+                        <Tooltip content={<StackedTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.1)' }} />
+                        <Bar dataKey="cash" name="Cash" fill="#4ADE80" />
+                        <Bar dataKey="debt" name="Debt" fill="#F87171" />
+                    </BarChart>
+                </ResponsiveContainer>
+            </ChartCard>
+            <ChartCard title="Dividends">
+                <ResponsiveContainer width="100%" height={280}>
+                    <BarChart data={filteredData.dividends} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
+                        <XAxis dataKey="date" tick={{ fontSize: 12, fill: '#9CA3AF' }} />
+                        <YAxis tickFormatter={(val) => `$${Number(val).toFixed(2)}`} tick={{ fontSize: 12, fill: '#9CA3AF' }} />
+                        <Tooltip content={<CurrencyTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.1)' }} />
+                        <Bar dataKey="value" fill="#2DD4BF" />
+                    </BarChart>
+                </ResponsiveContainer>
+            </ChartCard>
+            <ChartCard title="Return Of Capital">
+                <ResponsiveContainer width="100%" height={280}>
+                    <BarChart data={filteredData.returnOfCapital} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
+                        <XAxis dataKey="date" tick={{ fontSize: 12, fill: '#9CA3AF' }} />
+                        <YAxis tickFormatter={formatCurrency} tick={{ fontSize: 12, fill: '#9CA3AF' }} />
+                        <Tooltip content={<StackedTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.1)' }} />
+                        <Bar dataKey="buybacks" name="Buybacks" stackId="a" fill="#C4B5FD" />
+                        <Bar dataKey="dividends" name="Dividends" stackId="a" fill="#FDBA74" />
+                    </BarChart>
+                </ResponsiveContainer>
+            </ChartCard>
+            <ChartCard title="Shares Outstanding">
+                <ResponsiveContainer width="100%" height={280}>
+                    <BarChart data={filteredData.sharesOutstanding} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
+                        <XAxis dataKey="date" tick={{ fontSize: 12, fill: '#9CA3AF' }} />
+                        <YAxis tickFormatter={formatLargeNumber} tick={{ fontSize: 12, fill: '#9CA3AF' }} />
+                        <Tooltip formatter={(value: number) => formatLargeNumber(value)} cursor={{ fill: 'rgba(255, 255, 255, 0.1)' }} />
+                        <Bar dataKey="value" fill="#4FD1C5" />
+                    </BarChart>
+                </ResponsiveContainer>
+            </ChartCard>
+            <ChartCard title="Ratios">
+                <ResponsiveContainer width="100%" height={280}>
+                    <BarChart data={filteredData.ratios} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
+                        <XAxis dataKey="date" tick={{ fontSize: 12, fill: '#9CA3AF' }} />
+                        <YAxis tickFormatter={(val) => `${val.toFixed(0)}%`} tick={{ fontSize: 12, fill: '#9CA3AF' }} />
+                        <Tooltip formatter={(value: number) => `${value.toFixed(2)}%`} cursor={{ fill: 'rgba(255, 255, 255, 0.1)' }} />
+                        <Bar dataKey="value" fill="#60A5FA" />
                     </BarChart>
                 </ResponsiveContainer>
             </ChartCard>

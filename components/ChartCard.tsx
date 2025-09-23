@@ -1,6 +1,5 @@
 
 import React from 'react';
-import { ExpandIcon } from './icons/ExpandIcon';
 
 interface ChartCardProps {
   title: string;
@@ -23,9 +22,6 @@ const ChartCard: React.FC<ChartCardProps> = ({ title, children, kpi, tag, tagCol
             <h2 className="text-md font-semibold text-white">{title}</h2>
             {tag && <span className={`text-xs font-bold ml-3 px-2 py-1 rounded ${tagClasses}`}>{tag}</span>}
         </div>
-        <button className="text-gray-text hover:text-white p-1 rounded-md hover:bg-navy-light">
-          <ExpandIcon />
-        </button>
       </div>
       <div className="flex-grow">
         {children}

@@ -1,5 +1,6 @@
+
 // FIX: Import `CompanyOverview` to correctly type the mock data.
-import type { StockData, PriceDataPoint, FinancialDataPoint, CompanyOverview, InsiderTransaction } from './types';
+import type { StockData, PriceDataPoint, FinancialDataPoint, CompanyOverview, InsiderTransaction, CashAndDebtDataPoint, ReturnOfCapitalDataPoint } from './types';
 
 // FIX: Define and export NAV_ITEMS for use in the sidebar navigation.
 export const NAV_ITEMS = [
@@ -113,6 +114,13 @@ const MOCK_INSIDER_DATA: InsiderTransaction[] = [
   { name: 'BELL JAMES A', title: 'Director', date: '2025-01-30', shares: 1000, value: 230000 },
 ];
 
+const MOCK_EPS_DATA: FinancialDataPoint[] = quarterlyDates.map(date => ({ date, value: generateRandomValue(1.5, 2.8) }));
+const MOCK_CASH_DEBT_DATA: CashAndDebtDataPoint[] = quarterlyDates.map(date => ({ date, cash: generateRandomValue(80, 140) * 1e9, debt: generateRandomValue(10, 40) * 1e9 }));
+const MOCK_DIVIDENDS_DATA: FinancialDataPoint[] = quarterlyDates.slice(-8).map(date => ({ date, value: generateRandomValue(0.2, 0.25) }));
+const MOCK_ROC_DATA: ReturnOfCapitalDataPoint[] = quarterlyDates.map(date => ({ date, buybacks: generateRandomValue(10, 18) * 1e9, dividends: generateRandomValue(2, 4) * 1e9 }));
+const MOCK_SHARES_OUTSTANDING_DATA: FinancialDataPoint[] = quarterlyDates.map((date, i) => ({ date, value: (14 - i*0.1) * 1e9 }));
+const MOCK_RATIOS_DATA: FinancialDataPoint[] = quarterlyDates.map(date => ({ date, value: generateRandomValue(5, 12)}));
+
 export const MOCK_STOCK_DATA: StockData = {
   price: MOCK_PRICE_DATA,
   revenue: MOCK_REVENUE_DATA,
@@ -123,4 +131,10 @@ export const MOCK_STOCK_DATA: StockData = {
   overview: MOCK_OVERVIEW,
   latestBalanceSheet: MOCK_LATEST_BALANCE_SHEET,
   insiderTransactions: MOCK_INSIDER_DATA,
+  eps: MOCK_EPS_DATA,
+  cashAndDebt: MOCK_CASH_DEBT_DATA,
+  dividends: MOCK_DIVIDENDS_DATA,
+  returnOfCapital: MOCK_ROC_DATA,
+  sharesOutstanding: MOCK_SHARES_OUTSTANDING_DATA,
+  ratios: MOCK_RATIOS_DATA,
 };
