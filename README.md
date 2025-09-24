@@ -2,6 +2,12 @@
 
 This is a web application that allows you to visualize fundamental stock data for any company. It uses the AlphaVantage API to fetch data and displays it in an intuitive and interactive dashboard.
 
+## Screenshot
+
+![Application Screenshot](assets/homepage.png)
+![Application Screenshot - Middle](assets/homepage-middle.png)
+![Application Screenshot - Bottom](assets/homepage-bottom.png)
+
 ## Features
 
 - **Company Overview**: Get a snapshot of the company's profile, including its sector, industry, and a brief description.
