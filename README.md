@@ -5,6 +5,8 @@ This is a web application that allows you to visualize fundamental stock data fo
 ## Screenshot
 
 ![Application Screenshot](assets/homepage.png)
+![Application Screenshot - Middle](assets/homepage-middle.png)
+![Application Screenshot - Bottom](assets/homepage-bottom.png)
 
 ## Features
 
